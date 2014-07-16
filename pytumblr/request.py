@@ -1,9 +1,19 @@
-import urllib
-import urllib2
+try:
+	from urllib.parse import urlencode
+	from urllib.error import HTTPError
+	from urllib.request import urlopen
+	from urllib.request import Request as urllib_Request
+	from urllib.parse import parse_qsl
+except ImportError:
+	from urllib import urlencode
+	from urllib2 import HTTPError
+	from urllib2 import urlopen
+	from urllib2 import Request as urllib_Request
+	from urlparse import parse_qsl
+	
 import time
 import json
 
-from urlparse import parse_qsl
 import oauth2 as oauth
 from httplib2 import RedirectLimit
 
@@ -28,16 +38,16 @@ class TumblrRequest(object):
         """
         url = self.host + url
         if params:
-            url = url + "?" + urllib.urlencode(params)
+            url = url + "?" + urlencode(params)
 
         client = oauth.Client(self.consumer, self.token)
         try:
             client.follow_redirects = False
             resp, content = client.request(url, method="GET", redirections=False)
-        except RedirectLimit, e:
+        except RedirectLimit as e:
             resp, content = e.args
 
-        return self.json_parse(content)
+        return self.json_parse(content.decode())
 
     def post(self, url, params={}, files=[]):
         """
@@ -56,9 +66,9 @@ class TumblrRequest(object):
                 return self.post_multipart(url, params, files)
             else:
                 client = oauth.Client(self.consumer, self.token)
-                resp, content = client.request(url, method="POST", body=urllib.urlencode(params))
-                return self.json_parse(content)
-        except urllib2.HTTPError, e:
+                resp, content = client.request(url, method="POST", body=urlencode(params))
+                return self.json_parse(content.decode())
+        except HTTPError as e:
             return self.json_parse(e.read())
 
     def json_parse(self, content):
@@ -72,7 +82,7 @@ class TumblrRequest(object):
         """
         try:
             data = json.loads(content)
-        except ValueError, e:
+        except ValueError as e:
             data = {'meta': { 'status': 500, 'msg': 'Server Error'}, 'response': {"error": "Malformed JSON or HTML was returned."}}
         
         #We only really care about the response if we succeed
@@ -102,8 +112,8 @@ class TumblrRequest(object):
         headers = {'Content-Type': content_type, 'Content-Length': str(len(body))}
 
         #Do a bytearray of the body and everything seems ok
-        r = urllib2.Request(url, bytearray(body), headers)
-        content = urllib2.urlopen(r).read()
+        r = urllib_Request(url, bytearray(body), headers)
+        content = urlopen(r).read()
         return self.json_parse(content)
 
     def encode_multipart_formdata(self, fields, files):
